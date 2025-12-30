@@ -73,7 +73,7 @@
         import { 
             Trophy, Star, Flame, Clock, CheckCircle, XCircle, 
             Brain, ChevronRight, ChevronLeft, RotateCcw, Award, Home, 
-            ArrowRight, BookOpen, Activity, HeartPulse, Settings, SkipForward, LogOut, Maximize, Minimize
+            ArrowRight, BookOpen, Activity, HeartPulse, Settings, SkipForward, LogOut, Maximize, Minimize, ListChecks
         } from 'lucide-react';
 
         // --- DATA SOURCE (Extracted from SALEH.pdf) ---
@@ -217,7 +217,53 @@
 
         // --- UTILS ---
         const playSound = (type) => {
-            // Simplified sound logic (mock)
+            try {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContext) return;
+                
+                const ctx = new AudioContext();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                
+                if (type === 'correct') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(1000, ctx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.5);
+                } else if (type === 'wrong') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, ctx.currentTime);
+                    osc.frequency.linearRampToValueAtTime(100, ctx.currentTime + 0.3);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.3);
+                } else if (type === 'click') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(400, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.1);
+                } else if (type === 'badge') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, ctx.currentTime);
+                    osc.frequency.setValueAtTime(600, ctx.currentTime + 0.1);
+                    osc.frequency.setValueAtTime(1000, ctx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+                    osc.start(ctx.currentTime);
+                    osc.stop(ctx.currentTime + 0.6);
+                }
+            } catch (e) {
+                console.error("Audio play failed", e);
+            }
         };
 
         // --- COMPONENTS ---
@@ -234,6 +280,7 @@
 
         const BadgeNotification = ({ badge, onClose }) => {
             useEffect(() => {
+                playSound('badge');
                 const timer = setTimeout(onClose, 3000);
                 return () => clearTimeout(timer);
             }, [onClose]);
@@ -257,6 +304,7 @@
 
             const toggleFullScreen = async () => {
                 try {
+                    playSound('click');
                     if (!document.fullscreenElement) {
                         await document.documentElement.requestFullscreen();
                     } else {
@@ -436,12 +484,17 @@
 
                 const result = {
                     questionId: currentQ.id,
+                    questionText: currentQ.question,
+                    selectedAnswer: currentQ.options[index],
+                    correctAnswer: currentQ.options[currentQ.correct],
+                    rationale: currentQ.rationale,
                     isCorrect,
                     timeTaken
                 };
                 setHistory(prev => [...prev, result]);
 
                 if (isCorrect) {
+                    playSound('correct');
                     setScore(prev => prev + 1);
                     setStreak(prev => prev + 1);
                     setXpGained(prev => prev + 10 + (streak * 2)); // XP formula
@@ -453,12 +506,14 @@
                     if (timeTaken < 3) onUnlockBadge('speed_demon');
 
                 } else {
+                    playSound('wrong');
                     setStreak(0);
                 }
             };
 
             const nextQuestion = () => {
                 if (currentIndex < questions.length - 1) {
+                    playSound('click');
                     setCurrentIndex(prev => prev + 1);
                     setSelectedOption(null);
                     setIsAnswered(false);
@@ -471,6 +526,7 @@
 
             const prevQuestion = () => {
                  if (currentIndex > 0) {
+                     playSound('click');
                      setCurrentIndex(prev => prev - 1);
                      setSelectedOption(null);
                      setIsAnswered(false);
@@ -479,6 +535,7 @@
             };
 
             const skipQuestion = () => {
+                 playSound('click');
                  if (currentIndex < questions.length - 1) {
                     setCurrentIndex(prev => prev + 1);
                     setSelectedOption(null);
@@ -491,6 +548,7 @@
             };
 
             const endQuiz = () => {
+                playSound('click');
                 if (score + (selectedOption === questions[currentIndex]?.correct ? 1 : 0) === questions.length) {
                     onUnlockBadge('perfect_round');
                 }
@@ -540,7 +598,7 @@
                                 {currentQ.category}
                             </span>
                              <button 
-                                onClick={() => setShowRationale(!showRationale)} 
+                                onClick={() => { playSound('click'); setShowRationale(!showRationale); }} 
                                 className="text-slate-400 hover:text-blue-500 transition-colors text-sm font-bold flex items-center gap-1"
                             >
                                 <BookOpen size={16} /> Rationale
@@ -636,6 +694,7 @@
 
             const handleNext = () => {
                 if (index < cards.length - 1) {
+                    playSound('click');
                     setIndex(prev => prev + 1);
                     setIsFlipped(false);
                     setReviewedCount(prev => {
@@ -650,9 +709,15 @@
             
             const handlePrev = () => {
                  if (index > 0) {
+                    playSound('click');
                     setIndex(prev => prev - 1);
                     setIsFlipped(false);
                  }
+            };
+
+            const flipCard = () => {
+                playSound('click');
+                setIsFlipped(!isFlipped);
             };
 
             if (cards.length === 0) return null;
@@ -666,7 +731,7 @@
                         <span>Card {index + 1} / {cards.length}</span>
                     </div>
 
-                    <div className="group w-full max-w-2xl h-96 perspective cursor-pointer" onClick={() => setIsFlipped(!isFlipped)}>
+                    <div className="group w-full max-w-2xl h-96 perspective cursor-pointer" onClick={flipCard}>
                         <div className={`relative w-full h-full duration-500 preserve-3d transition-transform ${isFlipped ? 'rotate-y-180' : ''}`}>
                             {/* Front */}
                             <div className="absolute w-full h-full bg-white rounded-3xl shadow-2xl p-10 flex flex-col items-center justify-center text-center backface-hidden border border-slate-100">
@@ -707,9 +772,66 @@
             );
         };
 
-        const Results = ({ score, xpEarned, totalQuestions, onRestart, onHome }) => {
+        const ReviewMode = ({ history, onBack }) => {
+            return (
+                <div className="min-h-screen p-6 max-w-4xl mx-auto">
+                    <div className="flex justify-between items-center mb-8">
+                        <button 
+                            onClick={onBack}
+                            className="flex items-center gap-2 text-slate-600 font-bold hover:text-blue-600 transition-colors"
+                        >
+                            <ChevronLeft size={24} /> Back to Results
+                        </button>
+                        <h2 className="text-2xl font-black text-slate-900">Quiz Review</h2>
+                    </div>
+
+                    <div className="space-y-6">
+                        {history.map((item, idx) => (
+                            <div key={idx} className={`bg-white rounded-2xl p-6 border-l-8 shadow-sm ${item.isCorrect ? 'border-green-500' : 'border-red-500'}`}>
+                                <div className="flex justify-between items-start mb-4">
+                                    <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold uppercase">
+                                        Question {idx + 1}
+                                    </span>
+                                    {item.isCorrect ? 
+                                        <div className="flex items-center gap-1 text-green-600 font-bold"><CheckCircle size={18} /> Correct</div> : 
+                                        <div className="flex items-center gap-1 text-red-600 font-bold"><XCircle size={18} /> Incorrect</div>
+                                    }
+                                </div>
+                                
+                                <h3 className="text-lg font-bold text-slate-800 mb-4">{item.questionText}</h3>
+                                
+                                <div className="grid md:grid-cols-2 gap-4 mb-4">
+                                    <div className={`p-4 rounded-xl border ${item.isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                                        <div className="text-xs font-bold uppercase opacity-60 mb-1">Your Answer</div>
+                                        <div className="font-semibold">{item.selectedAnswer}</div>
+                                    </div>
+                                    <div className="p-4 rounded-xl border bg-blue-50 border-blue-200">
+                                        <div className="text-xs font-bold uppercase opacity-60 mb-1 text-blue-800">Correct Answer</div>
+                                        <div className="font-semibold text-blue-900">{item.correctAnswer}</div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                    <div className="font-bold text-slate-900 flex items-center gap-2 mb-1">
+                                        <BookOpen size={16} className="text-blue-500" /> Rationale
+                                    </div>
+                                    <p className="text-sm text-slate-600">{item.rationale}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const Results = ({ score, xpEarned, totalQuestions, history, onRestart, onHome }) => {
+            const [showReview, setShowReview] = useState(false);
             const percentage = Math.round((score / totalQuestions) * 100);
             
+            if (showReview) {
+                return <ReviewMode history={history} onBack={() => setShowReview(false)} />;
+            }
+
             return (
                 <div className="min-h-screen flex items-center justify-center p-6">
                     <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 w-full max-w-md text-center relative overflow-hidden animate-flash-big">
@@ -737,6 +859,12 @@
                         </div>
 
                         <div className="space-y-3">
+                            <button 
+                                onClick={() => { playSound('click'); setShowReview(true); }}
+                                className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-200 flex items-center justify-center gap-2"
+                            >
+                                <ListChecks size={20} /> Review Answers
+                            </button>
                             <button onClick={onRestart} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-blue-200">
                                 Try Again
                             </button>
@@ -761,13 +889,21 @@
 
 
             const startQuiz = (mode) => {
+                playSound('click');
                 setGameState(mode);
                 setSessionUnlockedBadges([]);
             };
 
-            const goHome = () => setGameState('start');
+            const goHome = () => {
+                playSound('click');
+                setGameState('start');
+            };
 
-            const restart = () => startQuiz('quiz');
+            const restart = () => {
+                playSound('click');
+                setGameState(null); // Force re-mount of quiz component to reset internal state properly if key not used
+                setTimeout(() => setGameState('quiz'), 0);
+            };
 
             const handleQuizFinish = (score, xp, total, history) => {
                 setUserProfile(prev => ({
